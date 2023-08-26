@@ -1,12 +1,17 @@
 package com.github.harbby;
 
+import sun.misc.Unsafe;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+
+import static java.util.Objects.requireNonNull;
 
 public class IOUtils
 {
@@ -27,11 +32,15 @@ public class IOUtils
         return transferred;
     }
 
-    public static byte[] readAllBytes(InputStream in) throws IOException {
+    public static byte[] readAllBytes(InputStream in)
+            throws IOException
+    {
         return readNBytes(in, Integer.MAX_VALUE);
     }
 
-    public static byte[] readNBytes(InputStream in, int len) throws IOException {
+    public static byte[] readNBytes(InputStream in, int len)
+            throws IOException
+    {
         if (len < 0) {
             throw new IllegalArgumentException("len < 0");
         }
@@ -59,7 +68,8 @@ public class IOUtils
                 total += nread;
                 if (result == null) {
                     result = buf;
-                } else {
+                }
+                else {
                     if (bufs == null) {
                         bufs = new ArrayList<>();
                         bufs.add(result);
@@ -69,7 +79,8 @@ public class IOUtils
             }
             // if the last call to read returned -1 or the number of bytes
             // requested have been read then break
-        } while (n >= 0 && remaining > 0);
+        }
+        while (n >= 0 && remaining > 0);
 
         if (bufs == null) {
             if (result == null) {
@@ -90,5 +101,25 @@ public class IOUtils
         }
 
         return result;
+    }
+
+    private static final Unsafe unsafe;
+
+    static {
+        Unsafe obj;
+        try {
+            Field unsafeField = Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            obj = (sun.misc.Unsafe) requireNonNull(unsafeField.get(null));
+        }
+        catch (Exception cause) {
+            throw new IllegalStateException(cause);
+        }
+        unsafe = obj;
+    }
+
+    public static Unsafe getUnsafe()
+    {
+        return unsafe;
     }
 }
