@@ -6,6 +6,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.Field;
+import java.nio.channels.FileChannel;
+import java.nio.channels.WritableByteChannel;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -30,6 +32,18 @@ public class IOUtils
             transferred += read;
         }
         return transferred;
+    }
+
+    public static long transferTo(FileChannel in, long position, long count, WritableByteChannel out)
+            throws IOException
+    {
+        Objects.requireNonNull(out, "out");
+        long transferred = position;
+        long read;
+        while (transferred < count && (read = in.transferTo(transferred, count - transferred, out)) >= 0) {
+            transferred += read;
+        }
+        return transferred - position;
     }
 
     public static byte[] readAllBytes(InputStream in)

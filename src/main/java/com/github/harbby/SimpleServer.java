@@ -103,17 +103,23 @@ public class SimpleServer
         private void downloadFile(HttpExchange t, File inputPath)
                 throws IOException
         {
-            t.sendResponseHeaders(200, inputPath.length());
+            long fileLength = inputPath.length();
+            t.sendResponseHeaders(200, fileLength);
+            long count;
             try (OutputStream os = t.getResponseBody();
                     FileInputStream fileInputStream = new FileInputStream(inputPath)) {
                 if (channelFieldOffset == -1) {
-                    IOUtils.transferTo(fileInputStream, os);
+                    count = IOUtils.transferTo(fileInputStream, os);
                 }
                 else {
                     // doZeroCopy
                     SocketChannel channel = getSocketChannel(os);
-                    fileInputStream.getChannel().transferTo(0, inputPath.length(), channel);
+                    count = IOUtils.transferTo(fileInputStream.getChannel(), 0, fileLength, channel);
                 }
+            }
+            if (count != fileLength) {
+                System.out.println("download file " + inputPath.getPath() +
+                        " failed. transferTo count is " + count + " but file length is " + fileLength);
             }
         }
 
@@ -145,25 +151,34 @@ public class SimpleServer
             }
         }
 
+        private void logInfo(HttpExchange t, int status)
+        {
+            String resPath = t.getRequestURI().getPath();
+            System.out.printf("%s - [%s] - %s - %s - %s%n",
+                    t.getRemoteAddress().getAddress().getHostAddress(),
+                    LocalDateTime.now(), t.getRequestMethod(), resPath, status);
+        }
+
         @Override
         public void handle(HttpExchange t)
                 throws IOException
         {
-            File inputPath = new File("." + t.getRequestURI().getPath());
-            String message = inputPath.exists() ? "200" : "404 - File NotFound";
-            System.out.printf("%s - [%s] - %s - %s%n",
-                    t.getRemoteAddress().getAddress().getHostAddress(),
-                    LocalDateTime.now(), t.getRequestMethod(), message);
+            String resPath = t.getRequestURI().getPath();
+            File inputPath = new File("." + resPath);
             if (!inputPath.exists()) {
+                logInfo(t, 404);
+
                 t.getResponseHeaders().set("Content-Type", "text/html; charset=utf-8");
                 t.getResponseHeaders().set("Server", "SimpleHTTPFileServer Java");
-
                 byte[] bytes = notFoundError.getBytes(StandardCharsets.UTF_8);
                 t.sendResponseHeaders(404, bytes.length);
                 t.getResponseBody().write(bytes);
                 t.getResponseBody().close();
+                return;
             }
-            else if (inputPath.isFile()) {
+
+            logInfo(t, 200);
+            if (inputPath.isFile()) {
                 downloadFile(t, inputPath);
             }
             else {
