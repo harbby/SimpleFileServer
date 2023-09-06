@@ -15,11 +15,15 @@ import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.NetworkInterface;
+import java.net.URI;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.concurrent.Executors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 import static java.util.Objects.requireNonNull;
 
@@ -100,11 +104,49 @@ public class SimpleServer
             this.notFoundError = notFoundError;
         }
 
+        private void downloadDir(HttpExchange t, File inputPath)
+                throws IOException
+        {
+            t.sendResponseHeaders(200, 0);
+            try (OutputStream out = t.getResponseBody();
+                    ZipOutputStream zout = new ZipOutputStream(out)) {
+                downloadDir0(zout, inputPath, "");
+            }
+        }
+
+        private void downloadDir0(ZipOutputStream zout, File inputDir, String parent)
+                throws IOException
+        {
+            File[] files = inputDir.listFiles();
+            if (files == null) {
+                return;
+            }
+            for (File file : files) {
+                String path = parent + "/" + file.getName();
+                if (file.isFile()) {
+                    ZipEntry zipEntry = new ZipEntry(path);
+                    zipEntry.setSize(file.length());
+                    zipEntry.setTime(file.lastModified());
+                    zout.putNextEntry(zipEntry);
+                    try (FileInputStream in = new FileInputStream(file)) {
+                        IOUtils.transferTo(in, zout);
+                    }
+                    zout.closeEntry();
+                }
+                else if (file.isDirectory()) {
+                    ZipEntry zipEntry = new ZipEntry(path + "/");
+                    zout.putNextEntry(zipEntry);
+                    downloadDir0(zout, file, path);
+                    zout.closeEntry();
+                }
+            }
+        }
+
         private void downloadFile(HttpExchange t, File inputPath)
                 throws IOException
         {
             long fileLength = inputPath.length();
-            t.sendResponseHeaders(200, fileLength);
+            t.sendResponseHeaders(200, fileLength == 0 ? -1 : fileLength);
             long count;
             try (OutputStream os = t.getResponseBody();
                     FileInputStream fileInputStream = new FileInputStream(inputPath)) {
@@ -136,10 +178,14 @@ public class SimpleServer
         {
             StringBuilder builder = new StringBuilder();
             File[] files = inputPath.listFiles();
-            if (files != null) {
+            if (files != null && files.length > 0) {
+                Arrays.sort(files, (f1, f2) -> {
+                    int cmp = Boolean.compare(f2.isDirectory(), f1.isDirectory());
+                    return cmp == 0 ? f1.getName().compareTo(f2.getName()) : cmp;
+                });
                 for (File file : files) {
                     String name = file.isDirectory() ? file.getName() + "/" : file.getName();
-                    builder.append(String.format("<li><a href=\"%s\">%s</a></li>\n", name, name));
+                    builder.append(String.format("<li><a href=\"%s\">%s</a></li>\n", file.getPath().substring(1), name));
                 }
             }
             String response = template.replace("${files}", builder);
@@ -159,29 +205,43 @@ public class SimpleServer
                     LocalDateTime.now(), t.getRequestMethod(), resPath, status);
         }
 
+        private void send404(HttpExchange t)
+                throws IOException
+        {
+            logInfo(t, 404);
+            t.getResponseHeaders().set("Content-Type", "text/html; charset=utf-8");
+            t.getResponseHeaders().set("Server", "SimpleHTTPFileServer Java");
+            byte[] bytes = notFoundError.getBytes(StandardCharsets.UTF_8);
+            t.sendResponseHeaders(404, bytes.length);
+            t.getResponseBody().write(bytes);
+            t.getResponseBody().close();
+        }
+
         @Override
         public void handle(HttpExchange t)
                 throws IOException
         {
-            String resPath = t.getRequestURI().getPath();
+            URI requestURI = t.getRequestURI();
+            String resPath = requestURI.getPath();
             File inputPath = new File("." + resPath);
             if (!inputPath.exists()) {
-                logInfo(t, 404);
-
-                t.getResponseHeaders().set("Content-Type", "text/html; charset=utf-8");
-                t.getResponseHeaders().set("Server", "SimpleHTTPFileServer Java");
-                byte[] bytes = notFoundError.getBytes(StandardCharsets.UTF_8);
-                t.sendResponseHeaders(404, bytes.length);
-                t.getResponseBody().write(bytes);
-                t.getResponseBody().close();
+                send404(t);
                 return;
             }
-
             logInfo(t, 200);
             if (inputPath.isFile()) {
                 downloadFile(t, inputPath);
             }
             else {
+                String query = requestURI.getQuery();
+                if (query != null) {
+                    for (String q : query.split("&")) {
+                        if ("zip".equals(q.trim())) {
+                            downloadDir(t, inputPath);
+                            return;
+                        }
+                    }
+                }
                 t.getResponseHeaders().set("Content-Type", "text/html; charset=utf-8");
                 t.getResponseHeaders().set("Server", "SimpleHTTPFileServer Java");
                 listDirs(t, inputPath);

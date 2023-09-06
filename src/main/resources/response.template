@@ -11,5 +11,6 @@
 ${files}
 </ul>
 <hr>
+<input type="button" value="download current directory" onclick="window.location.href='${path}?&zip'"/>
 </body>
 </html>
