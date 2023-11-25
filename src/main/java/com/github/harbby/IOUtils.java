@@ -2,6 +2,7 @@ package com.github.harbby;
 
 import sun.misc.Unsafe;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -115,6 +116,28 @@ public class IOUtils
         }
 
         return result;
+    }
+
+    public static void readFully(InputStream in, byte[] b)
+            throws IOException
+    {
+        readFully(in, b, 0, b.length);
+    }
+
+    public static void readFully(InputStream in, byte[] b, int off, int len)
+            throws IOException
+    {
+        if (len < 0) {
+            throw new IndexOutOfBoundsException();
+        }
+        int n = 0;
+        while (n < len) {
+            int count = in.read(b, off + n, len - n);
+            if (count < 0) {
+                throw new EOFException("should be read " + len + " bytes, but read " + n);
+            }
+            n += count;
+        }
     }
 
     private static final Unsafe unsafe;
