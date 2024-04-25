@@ -148,8 +148,9 @@ public class FileDownloadHandler
         }
         String response = template.replace("${files}", builder);
         response = response.replace("${path}", t.getRequestURI().getPath());
+        response = response.replace("${upath}", t.getRequestURI().getRawPath());
         String zipPath = t.getRequestURI().getRawPath();
-        zipPath = zipPath.substring(0, zipPath.length() - 1) + ".zip";
+        zipPath = zipPath.substring(0, zipPath.length() - 1) + ".zip?&download_dir";
         response = response.replace("${zip_path}", zipPath);
         byte[] rs = response.getBytes(StandardCharsets.UTF_8);
         t.sendResponseHeaders(200, rs.length);
@@ -184,7 +185,7 @@ public class FileDownloadHandler
         URI requestURI = t.getRequestURI();
         String resPath = requestURI.getPath();
         String query = requestURI.getQuery();
-        if ("&zip".equals(query) && resPath.endsWith(".zip")) {
+        if ("&download_dir".equals(query) && resPath.endsWith(".zip")) {
             resPath = resPath.substring(0, resPath.length() - ".zip".length());
             File inputPath = new File(".", resPath);
             if (!inputPath.exists()) {

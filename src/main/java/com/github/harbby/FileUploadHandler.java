@@ -17,15 +17,6 @@ import java.util.Map;
 public class FileUploadHandler
         implements HttpHandler
 {
-    public static void checkEquals(Object o1, Object o2)
-    {
-        if (o1 != o2 && o1 != null) {
-            if (!o1.equals(o2)) {
-                throw new IllegalStateException(String.format("%s not equals to %s", o1, o2));
-            }
-        }
-    }
-
     @Override
     public void handle(HttpExchange exchange)
             throws IOException
@@ -35,12 +26,20 @@ public class FileUploadHandler
             exchange.sendResponseHeaders(405, -1);
             return;
         }
-
+        String query = exchange.getRequestURI().getQuery();
+        String path = query.split("&path=")[1];
+        File savePath = new File(".", path);
+        if (!savePath.exists() || !savePath.isDirectory()) {
+            exchange.sendResponseHeaders(404, 0);
+            exchange.getResponseBody().write("upload dir not found".getBytes(StandardCharsets.UTF_8));
+            return;
+        }
         // 获取请求体的输入流
         try (InputStream inputStream = exchange.getRequestBody()) {
             int fileSize = Integer.parseInt(exchange.getRequestHeaders().getFirst("Content-length"));
             // 解析 multipart/form-data 请求体
-            Map<String, Long> parts = parseMultipart(inputStream, exchange.getRequestHeaders().getFirst("Content-Type"));
+            String contentType = exchange.getRequestHeaders().getFirst("Content-Type");
+            Map<String, Long> parts = saveMultipart(inputStream, contentType, savePath);
 
             // 返回响应
             String response = "File upload successful!";
@@ -98,7 +97,7 @@ public class FileUploadHandler
         }
     }
 
-    private Map<String, Long> parseMultipart(InputStream inputStream, String contentType)
+    private Map<String, Long> saveMultipart(InputStream inputStream, String contentType, File savePath)
             throws IOException
     {
         Map<String, Long> parts = new HashMap<>();
@@ -121,7 +120,7 @@ public class FileUploadHandler
                 // skip \r\n
                 checkAndSkip(bin, "\r\n");
 
-                File uploadDir = new File("__upload__");
+                File uploadDir = new File(savePath, "__upload__");
                 if (!uploadDir.exists()) {
                     uploadDir.mkdir();
                 }
