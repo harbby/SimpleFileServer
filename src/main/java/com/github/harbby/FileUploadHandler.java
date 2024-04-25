@@ -121,11 +121,11 @@ public class FileUploadHandler
                 // skip \r\n
                 checkAndSkip(bin, "\r\n");
 
-                File uploadDir = new File("__upload");
+                File uploadDir = new File("__upload__");
                 if (!uploadDir.exists()) {
                     uploadDir.mkdir();
                 }
-                File saveFile = new File("__upload", partName);
+                File saveFile = new File(uploadDir, partName);
                 try (FileOutputStream out = new FileOutputStream(saveFile, false)) {
                     endFlagInputStream.initEndWith(("\r\n" + flag).getBytes(StandardCharsets.UTF_8));
                     long size = IOUtils.transferTo(endFlagInputStream, out);

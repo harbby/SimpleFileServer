@@ -148,6 +148,9 @@ public class FileDownloadHandler
         }
         String response = template.replace("${files}", builder);
         response = response.replace("${path}", t.getRequestURI().getPath());
+        String zipPath = t.getRequestURI().getRawPath();
+        zipPath = zipPath.substring(0, zipPath.length() - 1) + ".zip";
+        response = response.replace("${zip_path}", zipPath);
         byte[] rs = response.getBytes(StandardCharsets.UTF_8);
         t.sendResponseHeaders(200, rs.length);
         try (OutputStream os = t.getResponseBody()) {
@@ -180,7 +183,20 @@ public class FileDownloadHandler
     {
         URI requestURI = t.getRequestURI();
         String resPath = requestURI.getPath();
-        File inputPath = "/".equals(resPath) ? new File(".") : new File(".", resPath);
+        String query = requestURI.getQuery();
+        if ("&zip".equals(query) && resPath.endsWith(".zip")) {
+            resPath = resPath.substring(0, resPath.length() - ".zip".length());
+            File inputPath = new File(".", resPath);
+            if (!inputPath.exists()) {
+                send404(t);
+                return;
+            }
+            logInfo(t, "DOWNLOAD_DIR", 200);
+            downloadDir(t, new File(".", resPath));
+            return;
+        }
+
+        File inputPath = new File(".", resPath);
         if (!inputPath.exists()) {
             send404(t);
             return;
@@ -189,16 +205,6 @@ public class FileDownloadHandler
             downloadFile(t, inputPath);
         }
         else {
-            String query = requestURI.getQuery();
-            if (query != null) {
-                for (String q : query.split("&")) {
-                    if ("zip".equals(q.trim())) {
-                        logInfo(t, "DOWNLOAD_DIR", 200);
-                        downloadDir(t, inputPath);
-                        return;
-                    }
-                }
-            }
             t.getResponseHeaders().set("Content-Type", "text/html; charset=utf-8");
             t.getResponseHeaders().set("Server", "SimpleHTTPFileServer Java");
             logInfo(t, "LIST_DIR", 200);

@@ -11,7 +11,7 @@
 ${files}
 </ul>
 <hr>
-<input type="button" value="download current directory" onclick="window.location.href='${path}?&zip'"/>
+<input type="button" value="download current directory" onclick="window.location.href='${zip_path}?&zip'"/>
 <hr>
 <form action="/upload" method="post" enctype="multipart/form-data">
     <label for="fileInput">选择文件：</label>
