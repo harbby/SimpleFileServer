@@ -10,6 +10,8 @@ import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URI;
+import java.net.URLDecoder;
+import java.net.URLEncoder;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
@@ -137,7 +139,9 @@ public class FileDownloadHandler
             });
             for (File file : files) {
                 String name = file.isDirectory() ? file.getName() + "/" : file.getName();
-                builder.append(String.format("<li><a href=\"%s\">%s</a></li>\n", file.getPath().substring(1), name));
+                String url = file.getPath().substring(1);
+                String encodeURL = URLEncoder.encode(url, "utf-8");
+                builder.append(String.format("<li><a href=\"%s\">%s</a></li>\n", encodeURL, name));
             }
         }
         String response = template.replace("${files}", builder);
@@ -174,8 +178,8 @@ public class FileDownloadHandler
     {
         URI requestURI = t.getRequestURI();
         String resPath = requestURI.getPath();
-
-        File inputPath = new File("." + resPath);
+        String decodePath = URLDecoder.decode(resPath, "utf-8");
+        File inputPath = "/".equals(resPath) ? new File(".") : new File(".", decodePath);
         if (!inputPath.exists()) {
             send404(t);
             return;

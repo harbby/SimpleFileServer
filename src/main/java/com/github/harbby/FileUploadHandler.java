@@ -125,9 +125,11 @@ public class FileUploadHandler
                 if (!uploadDir.exists()) {
                     uploadDir.mkdir();
                 }
-                try (FileOutputStream out = new FileOutputStream(new File("__upload", partName), false)) {
+                File saveFile = new File("__upload", partName);
+                try (FileOutputStream out = new FileOutputStream(saveFile, false)) {
                     endFlagInputStream.initEndWith(("\r\n" + flag).getBytes(StandardCharsets.UTF_8));
                     long size = IOUtils.transferTo(endFlagInputStream, out);
+                    System.out.printf("upload file %s [%s] [size=%s] to %s\n", partName, fileType, size, saveFile);
                     parts.put(partName, size);
                 }
 
