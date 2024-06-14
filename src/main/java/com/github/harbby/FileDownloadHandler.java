@@ -23,6 +23,9 @@ public class FileDownloadHandler
 {
     private final String template;
     private final String notFoundError;
+    private final MailHandler mailHandler;
+    private final FileUploadHandler fileUploadHandler;
+
     private static final long wrappedFieldOffset;
     private static final long outFieldOffset;
     private static final long channelFieldOffset;
@@ -49,10 +52,12 @@ public class FileDownloadHandler
         channelFieldOffset = channelFieldOffset0;
     }
 
-    public FileDownloadHandler(String template, String notFoundError)
+    public FileDownloadHandler(String template, String notFoundError, MailHandler mailHandler, FileUploadHandler fileUploadHandler)
     {
         this.template = template;
         this.notFoundError = notFoundError;
+        this.mailHandler = mailHandler;
+        this.fileUploadHandler = fileUploadHandler;
     }
 
     private void downloadDir(HttpExchange t, File inputPath)
@@ -152,6 +157,7 @@ public class FileDownloadHandler
         String zipPath = t.getRequestURI().getRawPath();
         zipPath = zipPath.substring(0, zipPath.length() - 1) + ".zip?&download_dir";
         response = response.replace("${zip_path}", zipPath);
+        response = response.replace("${history}", mailHandler.getAllHistory());
         byte[] rs = response.getBytes(StandardCharsets.UTF_8);
         t.sendResponseHeaders(200, rs.length);
         try (OutputStream os = t.getResponseBody()) {
@@ -218,12 +224,23 @@ public class FileDownloadHandler
             throws IOException
     {
         String method = t.getRequestMethod();
-        if (method.equals("GET")) {
-            doGet(t);
+        switch (method) {
+            case "GET":
+                doGet(t);
+                return;
+            case "POST":
+                URI requestURI = t.getRequestURI();
+                String query = requestURI.getQuery();
+                if ("&upload".equals(query)) {
+                    fileUploadHandler.handle(t);
+                    return;
+                }
+                else if ("&mail".equals(query)) {
+                    mailHandler.handle(t);
+                    return;
+                }
         }
-        else {
-            t.sendResponseHeaders(405, -1);
-            //send404(t);
-        }
+        t.sendResponseHeaders(405, -1);
+        t.getResponseBody().close();
     }
 }

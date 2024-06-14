@@ -38,8 +38,10 @@ public class SimpleServer
         String notFoundError = loadTemplate("FileNotFound.template");
         InetSocketAddress address = new InetSocketAddress(port);
         HttpServer server = HttpServer.create(address, 0);
-        server.createContext("/", new FileDownloadHandler(template, notFoundError));
-        server.createContext("/upload", new FileUploadHandler());
+        MailHandler mailHandler = new MailHandler();
+        FileUploadHandler fileUploadHandler = new FileUploadHandler();
+
+        server.createContext("/", new FileDownloadHandler(template, notFoundError, mailHandler, fileUploadHandler));
         server.setExecutor(Executors.newFixedThreadPool(parallelism)); // creates a default executor
         String hostName = address.getHostName();
         System.out.printf("Serving HTTP on %s port %s (http://%s:%s/) ...%n", hostName, port, hostName, port);

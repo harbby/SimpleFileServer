@@ -6,18 +6,47 @@
 </head>
 <body>
 <h1>Directory listing for ${path}</h1>
-<hr>
+<hr/>
 <ul>
 ${files}
 </ul>
-<hr>
+<hr/>
 <input type="button" value="download current directory" onclick="window.location.href='${zip_path}'"/>
-<hr>
-<form action="/upload?&path=${upath}" method="post" enctype="multipart/form-data">
-    <label for="fileInput">选择文件：</label>
+<hr/>
+<form action="${upath}?&upload" method="post" enctype="multipart/form-data">
+    <label for="fileInput">Select upload files:</label>
     <input type="file" id="fileInput" name="files[]" multiple>
     <br>
-    <button type="submit">submit</button>
+    <button type="submit">Save</button>
 </form>
+<hr/>
+<div>
+  <p><label for="msg_box0">Enter New Message:</label></p>
+  <textarea id="msg_box0" name="msg_box0" rows="6" cols="80"></textarea>
+  <br>
+  <input type="submit" value="Send" onclick="save()">
+</div>
+<script type="text/javascript">
+function save() {
+	//  IE7+, Firefox, Chrome, Opera, Safari
+	var xmlhttp=new XMLHttpRequest();
+	xmlhttp.open("POST","/?&mail",true);
+    xmlhttp.onreadystatechange=function()
+    {
+        if (xmlhttp.readyState==4 && xmlhttp.status==200)
+        {
+            // debugger
+            document.getElementById("msg_box0").value=null;
+            document.getElementById("history_box").innerHTML=xmlhttp.responseText;
+        }
+    }
+	var value = document.getElementById("msg_box0").value;
+	xmlhttp.send(value);
+}
+</script>
+<hr/>
+<div id='history_box'>
+${history}
+<div>
 </body>
 </html>

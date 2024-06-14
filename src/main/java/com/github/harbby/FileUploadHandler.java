@@ -26,8 +26,7 @@ public class FileUploadHandler
             exchange.sendResponseHeaders(405, -1);
             return;
         }
-        String query = exchange.getRequestURI().getQuery();
-        String path = query.split("&path=")[1];
+        String path = exchange.getRequestURI().getPath();
         File savePath = new File(".", path);
         if (!savePath.exists() || !savePath.isDirectory()) {
             exchange.sendResponseHeaders(404, 0);
@@ -36,13 +35,13 @@ public class FileUploadHandler
         }
         // 获取请求体的输入流
         try (InputStream inputStream = exchange.getRequestBody()) {
-            int fileSize = Integer.parseInt(exchange.getRequestHeaders().getFirst("Content-length"));
+            //int contentSize = Integer.parseInt(exchange.getRequestHeaders().getFirst("Content-length"));
             // 解析 multipart/form-data 请求体
             String contentType = exchange.getRequestHeaders().getFirst("Content-Type");
             Map<String, Long> parts = saveMultipart(inputStream, contentType, savePath);
 
             // 返回响应
-            String response = "File upload successful!";
+            String response = parts.isEmpty() ? "not found upload files!" : "File upload successful!";
             exchange.sendResponseHeaders(200, response.length());
             try (OutputStream os = exchange.getResponseBody()) {
                 os.write(response.getBytes());
@@ -115,6 +114,9 @@ public class FileUploadHandler
                 // 读取 part 头部
                 endFlagInputStream.initEndWith("\r\n".getBytes());
                 String partName = readFileName(endFlagInputStream);
+                if (partName.trim().isEmpty()) {
+                    return parts;
+                }
                 endFlagInputStream.initEndWith("\r\n".getBytes());
                 String fileType = readFileType(endFlagInputStream);
                 // skip \r\n
