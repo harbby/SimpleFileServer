@@ -34,8 +34,8 @@ public class SimpleServer
             }
         }
 
-        String template = loadTemplate("response.template");
-        String notFoundError = loadTemplate("FileNotFound.template");
+        String template = loadResourceTemplate();
+        String notFoundError = loadFileNotFoundTemplate();
         InetSocketAddress address = new InetSocketAddress(port);
         HttpServer server = HttpServer.create(address, 0);
         MailHandler mailHandler = new MailHandler();
@@ -48,11 +48,20 @@ public class SimpleServer
         server.start();
     }
 
-    private static String loadTemplate(String path)
+    private static String loadFileNotFoundTemplate()
             throws IOException
     {
-        try (InputStream in = SimpleServer.class.getClassLoader().getResourceAsStream(path)) {
-            requireNonNull(in, "resource file " + path + " not found");
+        try (InputStream in = SimpleServer.class.getResourceAsStream("/FileNotFound.template")) {
+            requireNonNull(in, "resource file FileNotFound.template not found");
+            return new String(IOUtils.readAllBytes(in), StandardCharsets.UTF_8);
+        }
+    }
+
+    public static String loadResourceTemplate()
+            throws IOException
+    {
+        try (InputStream in = SimpleServer.class.getResourceAsStream("/response.template")) {
+            requireNonNull(in, "resource file response.template not found");
             return new String(IOUtils.readAllBytes(in), StandardCharsets.UTF_8);
         }
     }
