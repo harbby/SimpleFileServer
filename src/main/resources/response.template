@@ -1,14 +1,14 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
 <html>
 <head>
-<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-<title>Directory listing for ${path}</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>Directory listing for ${path}</title>
 </head>
 <body>
 <h1>Directory listing for ${path}</h1>
 <hr/>
 <ul>
-${files}
+    ${files}
 </ul>
 <hr/>
 <input type="button" value="download current directory" onclick="window.location.href='${zip_path}'"/>
@@ -21,32 +21,32 @@ ${files}
 </form>
 <hr/>
 <div>
-  <p><label for="msg_box0">Enter New Message:</label></p>
-  <textarea id="msg_box0" name="msg_box0" rows="6" cols="80"></textarea>
-  <br>
-  <input type="submit" value="Send" onclick="save()">
+    <p><label for="msg_box0">Enter New Message:</label></p>
+    <textarea id="msg_box0" name="msg_box0" rows="6" cols="80"></textarea>
+    <br>
+    <input type="submit" value="Send" onclick="save()">
 </div>
 <script type="text/javascript">
-function save() {
-	//  IE7+, Firefox, Chrome, Opera, Safari
-	var xmlhttp=new XMLHttpRequest();
-	xmlhttp.open("POST","/?&mail",true);
-    xmlhttp.onreadystatechange=function()
-    {
-        if (xmlhttp.readyState==4 && xmlhttp.status==200)
+    function save() {
+        //  IE7+, Firefox, Chrome, Opera, Safari
+        var xmlhttp=new XMLHttpRequest();
+        xmlhttp.open("POST","/?&mail",true);
+        xmlhttp.onreadystatechange=function()
         {
-            // debugger
-            document.getElementById("msg_box0").value=null;
-            document.getElementById("history_box").innerHTML=xmlhttp.responseText;
+            if (xmlhttp.readyState==4 && xmlhttp.status==200)
+            {
+                // debugger
+                document.getElementById("msg_box0").value=null;
+                document.getElementById("history_box").innerHTML=xmlhttp.responseText;
+            }
         }
+        var value = document.getElementById("msg_box0").value;
+        xmlhttp.send(value);
     }
-	var value = document.getElementById("msg_box0").value;
-	xmlhttp.send(value);
-}
 </script>
 <hr/>
 <div id='history_box'>
-${history}
-<div>
+    ${history}
+</div>
 </body>
 </html>
