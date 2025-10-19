@@ -12,6 +12,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.net.URI;
 import java.net.URLEncoder;
+import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
@@ -27,7 +28,7 @@ public class FileDownloadHandler
     private final MailHandler mailHandler;
     private final FileUploadHandler fileUploadHandler;
 
-    private static VarHandle WRAPPED, OUT, CHANNEL;
+    private static VarHandle WRAPPED, ROS, OUT, CHANNEL;
 
     private static VarHandle lookupVarHandle(Class<?> jClass, String fieldName, Class<?> type)
             throws IllegalAccessException, NoSuchFieldException
@@ -41,9 +42,15 @@ public class FileDownloadHandler
 
     static {
         try {
-            WRAPPED = lookupVarHandle(Class.forName("sun.net.httpserver.PlaceholderOutputStream"),
-                    "wrapped",
-                    java.io.OutputStream.class);
+            WRAPPED = lookupVarHandle(Class.forName("sun.net.httpserver.HttpExchangeImpl"),
+                    "impl",
+                    Class.forName("sun.net.httpserver.ExchangeImpl")
+            );
+            ROS = lookupVarHandle(
+                    Class.forName("sun.net.httpserver.ExchangeImpl"),
+                    "ros",
+                    java.io.OutputStream.class
+            );
             OUT = lookupVarHandle(
                     java.io.FilterOutputStream.class,
                     "out",
@@ -112,25 +119,24 @@ public class FileDownloadHandler
             throws IOException
     {
         long fileLength = inputPath.length();
-        t.sendResponseHeaders(200, fileLength == 0 ? -1 : fileLength);
-        long count;
-        try (OutputStream os = t.getResponseBody();
-                FileInputStream fileInputStream = new FileInputStream(inputPath)) {
-            if (CHANNEL == null) {
+        long count = 0;
+        if (CHANNEL == null) {
+            try (OutputStream os = t.getResponseBody();
+                    FileInputStream fileInputStream = new FileInputStream(inputPath)) {
+                t.sendResponseHeaders(200, fileLength == 0 ? -1 : fileLength);
                 logInfo(t, "DOWNLOAD_FILE_BY_BIO", 200);
                 count = IOUtils.transferTo(fileInputStream, os);
             }
-            else {
-                os.flush(); //flush header
+        }
+        else {
+            try (SocketChannel channel = getSocketChannel(t);
+                    FileInputStream fileInputStream = new FileInputStream(inputPath)) {
                 // doZeroCopy
-                SocketChannel channel = getSocketChannel(os);
+                String statusLine = "HTTP/1.1 200 OK\r\nContent-Length: %s\r\n\r\n".formatted(fileLength);
+                channel.write(ByteBuffer.wrap(statusLine.getBytes(StandardCharsets.UTF_8)));
                 logInfo(t, "DOWNLOAD_FILE_BY_ZeroCopy", 200);
                 count = IOUtils.transferTo(fileInputStream.getChannel(), 0, fileLength, channel);
             }
-        }
-        catch (Exception e) {
-            e.printStackTrace();
-            count = 0;
         }
         if (count != fileLength) {
             System.out.println("download file " + inputPath.getPath() +
@@ -138,10 +144,10 @@ public class FileDownloadHandler
         }
     }
 
-    private SocketChannel getSocketChannel(OutputStream os)
+    private SocketChannel getSocketChannel(HttpExchange httpExchange)
     {
-        Object wrapped = WRAPPED.get(os);
-        Object outStream = OUT.get(wrapped);
+        Object wrapped = WRAPPED.get(httpExchange);
+        Object outStream = ROS.get(wrapped);
         if (outStream instanceof FilterOutputStream) {
             outStream = OUT.get(outStream);
         }
@@ -238,26 +244,30 @@ public class FileDownloadHandler
 
     @Override
     public void handle(HttpExchange t)
-            throws IOException
     {
-        String method = t.getRequestMethod();
-        switch (method) {
-            case "GET":
-                doGet(t);
-                return;
-            case "POST":
-                URI requestURI = t.getRequestURI();
-                String query = requestURI.getQuery();
-                if ("&upload".equals(query)) {
-                    fileUploadHandler.handle(t);
+        try (t) {
+            String method = t.getRequestMethod();
+            switch (method) {
+                case "GET":
+                    doGet(t);
                     return;
-                }
-                else if ("&mail".equals(query)) {
-                    mailHandler.handle(t);
-                    return;
-                }
+                case "POST":
+                    URI requestURI = t.getRequestURI();
+                    String query = requestURI.getQuery();
+                    if ("&upload".equals(query)) {
+                        fileUploadHandler.handle(t);
+                        return;
+                    }
+                    else if ("&mail".equals(query)) {
+                        mailHandler.handle(t);
+                        return;
+                    }
+            }
+            t.sendResponseHeaders(405, 0);
+            t.getResponseBody().close();
         }
-        t.sendResponseHeaders(405, -1);
-        t.getResponseBody().close();
+        catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }
