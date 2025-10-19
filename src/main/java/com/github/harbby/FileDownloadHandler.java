@@ -2,13 +2,14 @@ package com.github.harbby;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
-import sun.misc.Unsafe;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.channels.SocketChannel;
@@ -26,30 +27,39 @@ public class FileDownloadHandler
     private final MailHandler mailHandler;
     private final FileUploadHandler fileUploadHandler;
 
-    private static final long wrappedFieldOffset;
-    private static final long outFieldOffset;
-    private static final long channelFieldOffset;
+    private static VarHandle WRAPPED, OUT, CHANNEL;
+
+    private static VarHandle lookupVarHandle(Class<?> jClass, String fieldName, Class<?> type)
+            throws IllegalAccessException, NoSuchFieldException
+    {
+        return MethodHandles.privateLookupIn(jClass, MethodHandles.lookup()).findVarHandle(
+                jClass,
+                fieldName,
+                type
+        );
+    }
 
     static {
-        Unsafe unsafe = IOUtils.getUnsafe();
-        long wrappedFieldOffset0 = -1;
-        long outFieldOffset0 = -1;
-        long channelFieldOffset0 = -1;
         try {
-            Class<?> tClass = Class.forName("sun.net.httpserver.PlaceholderOutputStream");
-            wrappedFieldOffset0 = unsafe.objectFieldOffset(tClass.getDeclaredField("wrapped"));
-            outFieldOffset0 = unsafe.objectFieldOffset(FilterOutputStream.class.getDeclaredField("out"));
-            tClass = Class.forName("sun.net.httpserver.Request$WriteStream");
-            channelFieldOffset0 = unsafe.objectFieldOffset(tClass.getDeclaredField("channel"));
+            WRAPPED = lookupVarHandle(Class.forName("sun.net.httpserver.PlaceholderOutputStream"),
+                    "wrapped",
+                    java.io.OutputStream.class);
+            OUT = lookupVarHandle(
+                    java.io.FilterOutputStream.class,
+                    "out",
+                    java.io.OutputStream.class
+            );
+            CHANNEL = lookupVarHandle(
+                    Class.forName("sun.net.httpserver.Request$WriteStream"),
+                    "channel",
+                    java.nio.channels.SocketChannel.class
+            );
             System.out.println("enable zero copy mode succeed.");
         }
-        catch (ClassNotFoundException | NoSuchFieldException | ClassCastException e) {
-            System.out.println("enable zero copy mode failed.");
+        catch (ClassNotFoundException | NoSuchFieldException | ClassCastException | IllegalAccessException e) {
             e.printStackTrace();
+            System.out.println("enable zero copy mode failed.");
         }
-        wrappedFieldOffset = wrappedFieldOffset0;
-        outFieldOffset = outFieldOffset0;
-        channelFieldOffset = channelFieldOffset0;
     }
 
     public FileDownloadHandler(String template, String notFoundError, MailHandler mailHandler, FileUploadHandler fileUploadHandler)
@@ -106,16 +116,21 @@ public class FileDownloadHandler
         long count;
         try (OutputStream os = t.getResponseBody();
                 FileInputStream fileInputStream = new FileInputStream(inputPath)) {
-            if (channelFieldOffset == -1) {
+            if (CHANNEL == null) {
                 logInfo(t, "DOWNLOAD_FILE_BY_BIO", 200);
                 count = IOUtils.transferTo(fileInputStream, os);
             }
             else {
+                os.flush(); //flush header
                 // doZeroCopy
                 SocketChannel channel = getSocketChannel(os);
                 logInfo(t, "DOWNLOAD_FILE_BY_ZeroCopy", 200);
                 count = IOUtils.transferTo(fileInputStream.getChannel(), 0, fileLength, channel);
             }
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+            count = 0;
         }
         if (count != fileLength) {
             System.out.println("download file " + inputPath.getPath() +
@@ -125,10 +140,12 @@ public class FileDownloadHandler
 
     private SocketChannel getSocketChannel(OutputStream os)
     {
-        Unsafe unsafe = IOUtils.getUnsafe();
-        Object wrapped = unsafe.getObject(os, wrappedFieldOffset);
-        Object outStream = unsafe.getObject(wrapped, outFieldOffset);
-        return (SocketChannel) unsafe.getObject(outStream, channelFieldOffset);
+        Object wrapped = WRAPPED.get(os);
+        Object outStream = OUT.get(wrapped);
+        if (outStream instanceof FilterOutputStream) {
+            outStream = OUT.get(outStream);
+        }
+        return (SocketChannel) CHANNEL.get(outStream);
     }
 
     private void listDirs(HttpExchange t, File inputPath)

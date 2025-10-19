@@ -9,9 +9,9 @@
     <version>1.0-SNAPSHOT</version>
 
     <properties>
-        <native.maven.plugin.version>0.10.2</native.maven.plugin.version>
-        <maven.compiler.source>21</maven.compiler.source>
-        <maven.compiler.target>21</maven.compiler.target>
+        <native.maven.plugin.version>0.11.2</native.maven.plugin.version>
+        <maven.compiler.source>25</maven.compiler.source>
+        <maven.compiler.target>25</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <mainClass>com.github.harbby.SimpleServer</mainClass>
         <imageName>SimpleFileServer</imageName>
@@ -21,7 +21,7 @@
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
-            <version>5.11.0-M1</version>
+            <version>6.0.0</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -46,11 +46,6 @@
             <id>native</id>
             <build>
                 <plugins>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-surefire-plugin</artifactId>
-                        <version>3.0.0-M5</version>
-                    </plugin>
                     <plugin>
                         <groupId>org.graalvm.buildtools</groupId>
                         <artifactId>native-maven-plugin</artifactId>
@@ -81,7 +76,8 @@
                             <imageName>${imageName}</imageName>
                             <verbose>false</verbose>
                             <buildArgs>
-                                <!--<buildArg>&#45;&#45;argument</buildArg>-->
+                                <buildArg>--add-opens jdk.httpserver/sun.net.httpserver=ALL-UNNAMED</buildArg>
+                                <buildArg>--add-opens java.base/java.io=ALL-UNNAMED</buildArg>
                             </buildArgs>
                         </configuration>
                     </plugin>
@@ -116,6 +112,9 @@
                             <addClasspath>true</addClasspath>
                             <mainClass>${mainClass}</mainClass>
                         </manifest>
+                        <manifestEntries>
+                            <Add-Opens>jdk.httpserver/sun.net.httpserver java.base/java.io</Add-Opens>
+                        </manifestEntries>
                     </archive>
                 </configuration>
             </plugin>

@@ -20,7 +20,6 @@ public class SimpleServer
             throws Exception
     {
         int port = args.length > 0 ? Integer.parseInt(args[0]) : 8080;
-        int parallelism = args.length > 1 ? Integer.parseInt(args[1]) : 100;
 
         Enumeration<NetworkInterface> enumeration = NetworkInterface.getNetworkInterfaces();
         while (enumeration.hasMoreElements()) {
@@ -42,7 +41,7 @@ public class SimpleServer
         FileUploadHandler fileUploadHandler = new FileUploadHandler();
 
         server.createContext("/", new FileDownloadHandler(template, notFoundError, mailHandler, fileUploadHandler));
-        server.setExecutor(Executors.newFixedThreadPool(parallelism)); // creates a default executor
+        server.setExecutor(Executors.newVirtualThreadPerTaskExecutor()); // use VirtualThread
         String hostName = address.getHostName();
         System.out.printf("Serving HTTP on %s port %s (http://%s:%s/) ...%n", hostName, port, hostName, port);
         server.start();
