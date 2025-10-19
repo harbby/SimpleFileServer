@@ -124,6 +124,7 @@ public class FileDownloadHandler
             try (OutputStream os = t.getResponseBody();
                     FileInputStream fileInputStream = new FileInputStream(inputPath)) {
                 t.sendResponseHeaders(200, fileLength == 0 ? -1 : fileLength);
+                t.getResponseHeaders().add("Content-Type", "application/octet-stream");
                 logInfo(t, "DOWNLOAD_FILE_BY_BIO", 200);
                 count = IOUtils.transferTo(fileInputStream, os);
             }
@@ -132,7 +133,7 @@ public class FileDownloadHandler
             try (SocketChannel channel = getSocketChannel(t);
                     FileInputStream fileInputStream = new FileInputStream(inputPath)) {
                 // doZeroCopy
-                String statusLine = "HTTP/1.1 200 OK\r\nContent-Length: %s\r\n\r\n".formatted(fileLength);
+                String statusLine = "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %s\r\n\r\n".formatted(fileLength);
                 channel.write(ByteBuffer.wrap(statusLine.getBytes(StandardCharsets.UTF_8)));
                 logInfo(t, "DOWNLOAD_FILE_BY_ZeroCopy", 200);
                 count = IOUtils.transferTo(fileInputStream.getChannel(), 0, fileLength, channel);
